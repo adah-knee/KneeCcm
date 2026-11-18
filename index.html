@@ -255,28 +255,39 @@
     let isRepeatOne = false;
     let isShuffle = false;
 
+        // GitHub Trees API를 사용하여 폴더 내 모든 MP3 목록을 빠르고 안정적으로 불러오기
     async function fetchSongs() {
       try {
-        const apiUrl = `https://github.com{GITHUB_USER}/${GITHUB_REPO}/contents/${FOLDER_PATH}`;
+        const apiUrl = `https://github.com{GITHUB_USER}/${GITHUB_REPO}/git/trees/main?recursive=1`;
         const res = await fetch(apiUrl);
-        if (!res.ok) throw new Error("저장소 정보를 불러올 수 없습니다.");
         
-        const files = await res.json();
-        songs = files
-          .filter(f => f.name.toLowerCase().endsWith(".mp3"))
-          .map(f => ({
-            name: f.name.replace(/\.mp3$/i, ""),
-            url: `https://githubusercontent.com{GITHUB_USER}/${GITHUB_REPO}/main/${FOLDER_PATH}/${encodeURIComponent(f.name)}`
-          }))
+        if (!res.ok) {
+          throw new Error(`HTTP 상태 코드: ${res.status}`);
+        }
+        
+        const data = await res.json();
+        songs = data.tree
+          .filter(item => item.path.startsWith(`${FOLDER_PATH}/`) && item.path.toLowerCase().endsWith(".mp3"))
+          .map(item => {
+            const fileName = item.path.split("/").pop();
+            return {
+              name: fileName.replace(/\.mp3$/i, ""),
+              url: `https://githubusercontent.com{GITHUB_USER}/${GITHUB_REPO}/main/${FOLDER_PATH}/${encodeURIComponent(fileName)}`
+            };
+          })
           .sort((a, b) => a.name.localeCompare(b.name));
+
+        if (songs.length === 0) {
+          playlistEl.innerHTML = `<div class="loading">'${FOLDER_PATH}' 폴더 안에 .mp3 파일이 없습니다.</div>`;
+          return;
+        }
 
         filteredSongs = [...songs];
         songCountEl.textContent = `총 ${songs.length}곡`;
         renderPlaylist(filteredSongs);
       } catch (err) {
-        playlistEl.innerHTML = `<div class="loading">목록을 불러오지 못했습니다.<br>GitHub 아이디와 Public 설정을 확인해 주세요.</div>`;
+        playlistEl.innerHTML = `<div class="loading">오류 발생: ${err.message}<br><br>잠시 후(10~30분 뒤) 다시 새로고침하거나<br>GitHub 저장소의 Public 설정을 확인해 주세요.</div>`;
       }
-    }
 
     function renderPlaylist(list) {
       playlistEl.innerHTML = "";
