@@ -229,7 +229,6 @@
   <audio id="audio-player" preload="metadata" playsinline></audio>
 
   <script>
-    // 아래 따옴표 안에 본인의 GitHub 아이디와 저장소 이름을 넣으세요
     const GITHUB_USER = "adah-knee";
     const GITHUB_REPO = "KneeCcm";
     const FOLDER_PATH = "songs";
@@ -248,7 +247,6 @@
     const durationEl = document.getElementById("duration");
     const btnGithubUpload = document.getElementById("btn-github-upload");
 
-    // 상단 '+ 곡 관리' 버튼 클릭 시 깃허브 songs 폴더로 바로 이동
     btnGithubUpload.href = `https://github.com{GITHUB_USER}/${GITHUB_REPO}/tree/main/${FOLDER_PATH}`;
 
     let songs = [];
@@ -268,147 +266,6 @@
           .filter(f => f.name.toLowerCase().endsWith(".mp3"))
           .map(f => ({
             name: f.name.replace(/\.mp3$/i, ""),
-            url: `https://githubusercontent.com{GITHUB_USER}/${GITHUB_REPO}/main/${FOLDER_PATH}/${encodeURIComponent(f.name)}`
-          }))
-          .sort((a, b) => a.name.localeCompare(b.name));
-
-        filteredSongs = [...songs];
-        songCountEl.textContent = `총 ${songs.length}곡`;
-        renderPlaylist(filteredSongs);
-      } catch (err) {
-        playlistEl.innerHTML = `<div class="loading">목록을 불러오지 못했습니다.<br>GitHub 아이디와 Public 설정을 확인해 주세요.</div>`;
-      }
-    }
-
-    function renderPlaylist(list) {
-      playlistEl.innerHTML = "";
-      list.forEach((song, idx) => {
-        const originalIndex = songs.findIndex(s => s.url === song.url);
-        const div = document.createElement("div");
-        div.className = `song-item ${originalIndex === currentIndex ? "active" : ""}`;
-        div.innerHTML = `
-          <div class="song-index">${originalIndex === currentIndex ? "▶" : idx + 1}</div>
-          <div class="song-info">
-            <div class="song-title">${song.name}</div>
-          </div>
-        `;
-        div.onclick = () => playSong(originalIndex);
-        playlistEl.appendChild(div);
-      });
-    }
-
-    function playSong(index) {
-      if (index < 0 || index >= songs.length) return;
-      currentIndex = index;
-      const song = songs[currentIndex];
-      
-      audio.src = song.url;
-      audio.play();
-      
-      currentTitleEl.textContent = song.name;
-      btnPlay.textContent = "❚❚";
-      renderPlaylist(filteredSongs);
-    }
-
-    btnPlay.onclick = () => {
-      if (currentIndex === -1 && songs.length > 0) {
-        playSong(0);
-        return;
-      }
-      if (audio.paused) {
-        audio.play();
-        btnPlay.textContent = "❚❚";
-      } else {
-        audio.pause();
-        btnPlay.textContent = "▶";
-      }
-    };
-
-    btnPrev.onclick = () => {
-      if (songs.length === 0) return;
-      let prev = currentIndex - 1;
-      if (prev < 0) prev = songs.length - 1;
-      playSong(prev);
-    };
-
-    btnNext.onclick = () => {
-      if (songs.length === 0) return;
-      if (isShuffle) {
-        const rand = Math.floor(Math.random() * songs.length);
-        playSong(rand);
-      } else {
-        let next = (currentIndex + 1) % songs.length;
-        playSong(next);
-      }
-    };
-
-    btnRepeat.onclick = () => {
-      isRepeatOne = !isRepeatOne;
-      btnRepeat.classList.toggle("active", isRepeatOne);
-    };
-
-    btnShuffle.onclick = () => {
-      isShuffle = !isShuffle;
-      btnShuffle.style.color = isShuffle ? "var(--spotify-green)" : "var(--text-secondary)";
-    };
-
-    audio.onended = () => {
-      if (isRepeatOne) {
-        audio.currentTime = 0;
-        audio.play();
-      } else {
-        btnNext.click();
-      }
-    };
-
-    audio.ontimeupdate = () => {
-      if (!audio.duration || isNaN(audio.duration)) return;
-      seekBar.value = (audio.currentTime / audio.duration) * 100;
-      currentTimeEl.textContent = formatTime(audio.currentTime);
-      durationEl.textContent = formatTime(audio.duration);
-    };
-
-    seekBar.oninput = () => {
-      if (!audio.duration || isNaN(audio.duration)) return;
-      audio.currentTime = (seekBar.value / 100) * audio.duration;
-    };
-
-    function formatTime(sec) {
-      if (isNaN(sec)) return "0:00";
-      const m = Math.floor(sec / 60);
-      const s = Math.floor(sec % 60);
-      return `${m}:${s < 10 ? "0" : ""}${s}`;
-    }
-
-    searchInput.oninput = (e) => {
-      const keyword = e.target.value.toLowerCase();
-      filteredSongs = songs.filter(s => s.name.toLowerCase().includes(keyword));
-      renderPlaylist(filteredSongs);
-    };
-
-    fetchSongs();
-  </script>
-</body>
-</html>
-    let songs = [];
-    let filteredSongs = [];
-    let currentIndex = -1;
-    let isRepeatOne = false;
-    let isShuffle = false;
-
-    // GitHub API에서 songs 폴더 내 MP3 목록 자동 불러오기
-    async function fetchSongs() {
-      try {
-        const apiUrl = `https://github.com{GITHUB_USER}/${GITHUB_REPO}/contents/${FOLDER_PATH}`;
-        const res = await fetch(apiUrl);
-        if (!res.ok) throw new Error("저장소 정보를 불러올 수 없습니다.");
-        
-        const files = await res.json();
-        songs = files
-          .filter(f => f.name.toLowerCase().endsWith(".mp3"))
-          .map(f => ({
-            name: f.name.replace(/\.mp3$/i, ""),
-            // 초고속 스트리밍 직통 URL
             url: `https://githubusercontent.com{GITHUB_USER}/${GITHUB_REPO}/main/${FOLDER_PATH}/${encodeURIComponent(f.name)}`
           }))
           .sort((a, b) => a.name.localeCompare(b.name));
