@@ -165,7 +165,8 @@
       color: #000000;
       font-size: 22px;
     }
-    .btn-repeat.active { color: var(--spotify-green); position: relative; }
+    .ctrl-btn.active { color: var(--spotify-green); }
+    .btn-repeat.active { position: relative; }
     .btn-repeat.active::after {
       content: "1";
       position: absolute;
@@ -176,7 +177,7 @@
       transform: translate(-50%, -45%);
     }
 
-    .loading { text-align: center; padding: 40px; color: var(--text-secondary); font-size: 14px; }
+    .loading { text-align: center; padding: 40px; color: var(--text-secondary); font-size: 14px; line-height: 1.5; }
   </style>
 </head>
 <body>
@@ -187,7 +188,7 @@
         <h1>My Playlist</h1>
         <span id="song-count">로딩 중...</span>
       </div>
-      <a class="btn-add" id="btn-github-upload" target="_blank">+ 곡 관리</a>
+      <a class="btn-add" id="btn-github-upload" target="_blank" rel="noopener noreferrer">+ 곡 관리</a>
     </div>
     <input type="text" id="search-input" placeholder="곡 제목 검색...">
   </header>
@@ -232,6 +233,7 @@
     const GITHUB_USER = "adah-knee";
     const GITHUB_REPO = "KneeCcm";
     const FOLDER_PATH = "songs";
+
     const audio = document.getElementById("audio-player");
     const playlistEl = document.getElementById("playlist");
     const songCountEl = document.getElementById("song-count");
@@ -247,7 +249,7 @@
     const durationEl = document.getElementById("duration");
     const btnGithubUpload = document.getElementById("btn-github-upload");
 
-    btnGithubUpload.href = `https://github.com{GITHUB_USER}/${GITHUB_REPO}/tree/main/${FOLDER_PATH}`;
+    btnGithubUpload.href = `https://github.com/${GITHUB_USER}/${GITHUB_REPO}/tree/main/${FOLDER_PATH}`;
 
     let songs = [];
     let filteredSongs = [];
@@ -255,10 +257,10 @@
     let isRepeatOne = false;
     let isShuffle = false;
 
-        // GitHub Trees API를 사용하여 폴더 내 모든 MP3 목록을 빠르고 안정적으로 불러오기
+    // GitHub Trees API를 사용하여 폴더 내 모든 MP3 목록 불러오기
     async function fetchSongs() {
       try {
-        const apiUrl = `https://github.com{GITHUB_USER}/${GITHUB_REPO}/git/trees/main?recursive=1`;
+        const apiUrl = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/git/trees/main?recursive=1`;
         const res = await fetch(apiUrl);
         
         if (!res.ok) {
@@ -272,12 +274,13 @@
             const fileName = item.path.split("/").pop();
             return {
               name: fileName.replace(/\.mp3$/i, ""),
-              url: `https://githubusercontent.com{GITHUB_USER}/${GITHUB_REPO}/main/${FOLDER_PATH}/${encodeURIComponent(fileName)}`
+              url: `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/main/${FOLDER_PATH}/${encodeURIComponent(fileName)}`
             };
           })
-          .sort((a, b) => a.name.localeCompare(b.name));
+          .sort((a, b) => a.name.localeCompare(b.name, "ko"));
 
         if (songs.length === 0) {
+          songCountEl.textContent = "0곡";
           playlistEl.innerHTML = `<div class="loading">'${FOLDER_PATH}' 폴더 안에 .mp3 파일이 없습니다.</div>`;
           return;
         }
@@ -286,8 +289,10 @@
         songCountEl.textContent = `총 ${songs.length}곡`;
         renderPlaylist(filteredSongs);
       } catch (err) {
-        playlistEl.innerHTML = `<div class="loading">오류 발생: ${err.message}<br><br>잠시 후(10~30분 뒤) 다시 새로고침하거나<br>GitHub 저장소의 Public 설정을 확인해 주세요.</div>`;
+        songCountEl.textContent = "오류";
+        playlistEl.innerHTML = `<div class="loading">오류 발생: ${err.message}<br><br>잠시 후 다시 새로고침하거나<br>GitHub 저장소의 Public 설정 및 브랜치명(main)을 확인해 주세요.</div>`;
       }
+    }
 
     function renderPlaylist(list) {
       playlistEl.innerHTML = "";
@@ -312,7 +317,7 @@
       const song = songs[currentIndex];
       
       audio.src = song.url;
-      audio.play();
+      audio.play().catch(e => console.error("재생 오류:", e));
       
       currentTitleEl.textContent = song.name;
       btnPlay.textContent = "❚❚";
@@ -342,8 +347,11 @@
 
     btnNext.onclick = () => {
       if (songs.length === 0) return;
-      if (isShuffle) {
-        const rand = Math.floor(Math.random() * songs.length);
+      if (isShuffle && songs.length > 1) {
+        let rand;
+        do {
+          rand = Math.floor(Math.random() * songs.length);
+        } while (rand === currentIndex);
         playSong(rand);
       } else {
         let next = (currentIndex + 1) % songs.length;
@@ -358,7 +366,7 @@
 
     btnShuffle.onclick = () => {
       isShuffle = !isShuffle;
-      btnShuffle.style.color = isShuffle ? "var(--spotify-green)" : "var(--text-secondary)";
+      btnShuffle.classList.toggle("active", isShuffle);
     };
 
     audio.onended = () => {
