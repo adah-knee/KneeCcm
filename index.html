@@ -362,6 +362,7 @@
     btnRepeat.onclick = () => {
       isRepeatOne = !isRepeatOne;
       btnRepeat.classList.toggle("active", isRepeatOne);
+      btnRepeat.title = isRepeatOne ? "한 곡 무한 반복 켜짐" : "한 곡 반복 꺼짐";
     };
 
     btnShuffle.onclick = () => {
@@ -369,13 +370,30 @@
       btnShuffle.classList.toggle("active", isShuffle);
     };
 
+    // 곡이 끝나면 반복 설정에 따라 다음 곡 또는 현재 곡을 재생합니다.
     audio.onended = () => {
+      if (songs.length === 0 || currentIndex < 0) return;
+
+      // 한 곡 반복이 켜져 있으면 현재 곡만 계속 반복
       if (isRepeatOne) {
         audio.currentTime = 0;
-        audio.play();
-      } else {
-        btnNext.click();
+        audio.play().catch(err => console.error("반복 재생 오류:", err));
+        return;
       }
+
+      // 셔플이 켜져 있으면 현재 곡과 다른 곡을 무작위로 선택
+      if (isShuffle && songs.length > 1) {
+        let nextIndex;
+        do {
+          nextIndex = Math.floor(Math.random() * songs.length);
+        } while (nextIndex === currentIndex);
+        playSong(nextIndex);
+        return;
+      }
+
+      // 일반 재생: 다음 곡으로 이동하고 마지막 곡 다음에는 첫 곡 재생
+      const nextIndex = (currentIndex + 1) % songs.length;
+      playSong(nextIndex);
     };
 
     audio.ontimeupdate = () => {
