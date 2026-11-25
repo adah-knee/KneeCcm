@@ -177,6 +177,34 @@
       transform: translate(-50%, -45%);
     }
 
+    .volume-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 2px 16px 0;
+      color: var(--text-secondary);
+    }
+    .volume-btn {
+      width: 28px;
+      height: 28px;
+      border: 0;
+      background: transparent;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex: 0 0 28px;
+    }
+    #volume-bar {
+      width: min(180px, 55vw);
+      height: 4px;
+      accent-color: var(--spotify-green);
+      cursor: pointer;
+    }
+    #volume-value { min-width: 34px; font-size: 11px; text-align: right; }
+
     .loading { text-align: center; padding: 40px; color: var(--text-secondary); font-size: 14px; line-height: 1.5; }
   </style>
 </head>
@@ -225,6 +253,18 @@
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
       </button>
     </div>
+
+    <div class="volume-container" aria-label="볼륨 조절">
+      <button class="volume-btn" id="btn-mute" type="button" title="음소거" aria-label="음소거">
+        <svg id="volume-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M19 5a9 9 0 0 1 0 14"></path>
+          <path d="M15.5 8.5a5 5 0 0 1 0 7"></path>
+        </svg>
+      </button>
+      <input type="range" id="volume-bar" min="0" max="100" value="70" step="1" aria-label="볼륨">
+      <span id="volume-value">70%</span>
+    </div>
   </div>
 
   <audio id="audio-player" preload="metadata" playsinline></audio>
@@ -248,6 +288,10 @@
     const currentTimeEl = document.getElementById("current-time");
     const durationEl = document.getElementById("duration");
     const btnGithubUpload = document.getElementById("btn-github-upload");
+    const volumeBar = document.getElementById("volume-bar");
+    const volumeValue = document.getElementById("volume-value");
+    const btnMute = document.getElementById("btn-mute");
+    const volumeIcon = document.getElementById("volume-icon");
 
     btnGithubUpload.href = `https://github.com/${GITHUB_USER}/${GITHUB_REPO}/tree/main/${FOLDER_PATH}`;
 
@@ -256,6 +300,40 @@
     let currentIndex = -1;
     let isRepeatOne = false;
     let isShuffle = false;
+    let lastVolume = 0.7;
+    audio.volume = 0.7;
+
+    function updateVolumeUI() {
+      const percent = Math.round(audio.volume * 100);
+      volumeBar.value = audio.muted ? 0 : percent;
+      volumeValue.textContent = `${audio.muted ? 0 : percent}%`;
+      const muted = audio.muted || audio.volume === 0;
+      btnMute.title = muted ? "음소거 해제" : "음소거";
+      btnMute.setAttribute("aria-label", btnMute.title);
+      volumeIcon.innerHTML = muted
+        ? '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M23 9l-6 6"></path><path d="M17 9l6 6"></path>'
+        : '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19 5a9 9 0 0 1 0 14"></path><path d="M15.5 8.5a5 5 0 0 1 0 7"></path>';
+    }
+
+    volumeBar.oninput = () => {
+      const value = Number(volumeBar.value) / 100;
+      audio.volume = value;
+      audio.muted = value === 0;
+      if (value > 0) lastVolume = value;
+      updateVolumeUI();
+    };
+
+    btnMute.onclick = () => {
+      if (audio.muted || audio.volume === 0) {
+        audio.muted = false;
+        audio.volume = lastVolume || 0.7;
+      } else {
+        lastVolume = audio.volume;
+        audio.muted = true;
+      }
+      updateVolumeUI();
+    };
+    updateVolumeUI();
 
     // GitHub Trees API를 사용하여 폴더 내 모든 MP3 목록 불러오기
     async function fetchSongs() {
@@ -362,6 +440,7 @@
     btnRepeat.onclick = () => {
       isRepeatOne = !isRepeatOne;
       btnRepeat.classList.toggle("active", isRepeatOne);
+      btnRepeat.title = isRepeatOne ? "한 곡 무한 반복 켜짐" : "한 곡 반복 꺼짐";
     };
 
     btnShuffle.onclick = () => {
@@ -369,13 +448,30 @@
       btnShuffle.classList.toggle("active", isShuffle);
     };
 
+    // 곡이 끝나면 반복 설정에 따라 다음 곡 또는 현재 곡을 재생합니다.
     audio.onended = () => {
+      if (songs.length === 0 || currentIndex < 0) return;
+
+      // 한 곡 반복이 켜져 있으면 현재 곡만 계속 반복
       if (isRepeatOne) {
         audio.currentTime = 0;
-        audio.play();
-      } else {
-        btnNext.click();
+        audio.play().catch(err => console.error("반복 재생 오류:", err));
+        return;
       }
+
+      // 셔플이 켜져 있으면 현재 곡과 다른 곡을 무작위로 선택
+      if (isShuffle && songs.length > 1) {
+        let nextIndex;
+        do {
+          nextIndex = Math.floor(Math.random() * songs.length);
+        } while (nextIndex === currentIndex);
+        playSong(nextIndex);
+        return;
+      }
+
+      // 일반 재생: 다음 곡으로 이동하고 마지막 곡 다음에는 첫 곡 재생
+      const nextIndex = (currentIndex + 1) % songs.length;
+      playSong(nextIndex);
     };
 
     audio.ontimeupdate = () => {
